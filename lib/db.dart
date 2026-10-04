@@ -1,44 +1,45 @@
 import 'package:path/path.dart' as p;
 import 'package:sqflite_common/sqlite_api.dart';
+import 'package:uuid/data.dart';
+import 'package:uuid/uuid.dart';
 
 import 'import/mapping_rules.dart';
 import 'models.dart';
 
-/// 与 docs/schema.sql 一致（docs 里那版末尾多了个逗号，跑不了，这里是修好的）。
-const String kCreateTableSql = '''
-CREATE TABLE IF NOT EXISTS transactions (
+const String kCreateSqlEntries = '''
+CREATE TABLE IF NOT EXISTS entries (
     id              TEXT    PRIMARY KEY,
     date            TEXT    NOT NULL,
-    currency        TEXT    NOT NULL DEFAULT 'CNY',
     type            TEXT,
     counterparty    TEXT,
     item            TEXT,
-    direction       TEXT    NOT NULL CHECK (direction IN ('income', 'expense')),
-    cents           INTEGER NOT NULL CHECK (cents > 0),
-    category        TEXT
+    currency        TEXT    NOT NULL DEFAULT 'CNY',
+    transaction     TEXT    NOT NULL CHECK (transaction IN ('income', 'expense')),
+    amount          INTEGER NOT NULL CHECK (amount > 0),
+    category        TEXT,
 )
 ''';
 
 /// 交易分类和 ICON 的映射
-const String kCreateCategoryIconSql = '''
-CREATE TABLE IF NOT EXISTS category_icon (
+const String kCreateSqlIcons = '''
+CREATE TABLE IF NOT EXISTS icons (
     category  TEXT PRIMARY KEY,
     icon TEXT NOT NULL
 )
 ''';
 
-/// 映射 SQL 的数据字段
-const String kCreateSettingsSql = '''
-CREATE TABLE IF NOT EXISTS settings (
-    name  TEXT PRIMARY KEY,
-    date  TEXT NOT NULL,
-    currency  TEXT,
-    type  TEXT,
-    counterparty  TEXT NOT NULL,
-    item  TEXT NOT NULL,
-    direction  TEXT NOT NULL,
-    cents  TEXT NOT NULL
-    category  TEXT
+/// SQL 与数据字段的映射关系
+const String kCreateSqlRules = '''
+CREATE TABLE IF NOT EXISTS rules (
+    name   TEXT PRIMARY KEY,
+    date            TEXT    NOT NULL,
+    type            TEXT    NOT NULL,
+    counterparty    TEXT    NOT NULL,
+    item            TEXT    NOT NULL,
+    currency        TEXT,
+    transaction     TEXT    NOT NULL,
+    amount          INTEGER NOT NULL,
+    category        TEXT,
 )
 ''';
 
@@ -111,7 +112,7 @@ Future<Database> openAppDb({
   return factory.openDatabase(
     dbPath,
     options: OpenDatabaseOptions(
-      version: 4,
+      version: 5,
       onCreate: (db, _) async {
         await db.execute(kCreateTableSql);
         await db.execute(kCreateCategoryIconSql);
@@ -119,6 +120,8 @@ Future<Database> openAppDb({
         await _seedCategoryIcons(db);
       },
       onUpgrade: (db, from, _) async {
+        // v5 得排在最前面：它把老列名重建成新的，后面的播种 / 建表才写得进去
+        if (from < 5) await _migrateToV5(db);
         if (from < 2) await db.execute(kCreateCategoryIconSql);
         if (from < 3) await _seedCategoryIcons(db);
         if (from < 4) await db.execute(kCreateSettingsSql);
@@ -127,26 +130,80 @@ Future<Database> openAppDb({
   );
 }
 
+/// v4 -> v5：主键从小自增整数换成 uuidv7 的 TEXT，金额列 `amount_cents` 改成 `cents`，
+/// 分类图标列 `icon_name` 改成 `icon`。
+///
+/// SQLite 改不了主键类型，只能重建表。老行的新 id 拿它自己的 `date` 当时间戳交给
+/// `uuid` 包生成 —— id 的字典序依然跟着日期走。
+///
+/// 注意 `date` 只到秒，**同一个 `date` 字符串的行会拿到同一个毫秒**（比如两笔发生在
+/// 同一秒的交易）。v7 剩下那 74 位是纯随机、没有顺序含义，所以这几行之间在
+/// `date DESC, id DESC` 里是随机先后 —— 唯一的例外，id 本身仍然是唯一的。
+Future<void> _migrateToV5(Database db) async {
+  final old = await db.query('transactions', orderBy: 'date, id');
+
+  final batch = db.batch();
+  batch.execute('DROP TABLE transactions');
+  batch.execute(kCreateTableSql);
+  for (final r in old) {
+    final at = DateTime.tryParse('${r['date']}');
+    batch.insert('transactions', {
+      'id': _uuid.v7(config: V7Options(at?.millisecondsSinceEpoch, null)),
+      'date': r['date'],
+      'currency': r['currency'],
+      'type': r['type'],
+      'counterparty': r['counterparty'],
+      'item': r['item'],
+      'direction': r['direction'],
+      'cents': r['amount_cents'] ?? r['cents'],
+      'category': r['category'],
+    });
+  }
+  await batch.commit(noResult: true);
+
+  // category_icon 只要改列名。建表语句可能已经是新的了（老库版本低的话）。
+  if ((await _columns(db, 'category_icon')).contains('icon_name')) {
+    await db.execute('ALTER TABLE category_icon RENAME TO category_icon_old');
+    await db.execute(kCreateCategoryIconSql);
+    await db.execute(
+      'INSERT INTO category_icon (category, icon) '
+      'SELECT category, icon_name FROM category_icon_old',
+    );
+    await db.execute('DROP TABLE category_icon_old');
+  }
+}
+
+Future<Set<String>> _columns(Database db, String table) async {
+  final rows = await db.rawQuery('PRAGMA table_info($table)');
+  return {for (final r in rows) r['name'] as String};
+}
+
 /// 表为空时才灌初始数据。用户改过 / 删过就不动他。
 Future<void> _seedCategoryIcons(Database db) async {
   final r = await db.rawQuery('SELECT COUNT(*) AS c FROM category_icon');
   if (((r.first['c'] as int?) ?? 0) > 0) return;
   final batch = db.batch();
   kDefaultCategoryIcons.forEach((category, iconName) {
-    batch.insert('category_icon', {
-      'category': category,
-      'icon_name': iconName,
-    });
+    batch.insert('category_icon', {'category': category, 'icon': iconName});
   });
   await batch.commit(noResult: true);
 }
+
+/// uuidv7 生成器。库的默认随机源是 CryptoRNG，id 不可猜。
+const Uuid _uuid = Uuid();
 
 class TxnDao {
   final Database db;
 
   TxnDao(this.db);
 
-  Future<int> insert(Txn t) => db.insert('transactions', t.toMap());
+  /// 新增，返回新行的 id。没带 id 的由这里补一个 uuidv7。
+  Future<String> insert(Txn t) async {
+    final map = t.toMap();
+    final id = (map['id'] ??= _uuid.v7()) as String;
+    await db.insert('transactions', map);
+    return id;
+  }
 
   Future<int> update(Txn t) {
     final id = t.id;
@@ -159,10 +216,10 @@ class TxnDao {
     );
   }
 
-  Future<int> deleteTxn(int id) =>
+  Future<int> deleteTxn(String id) =>
       db.delete('transactions', where: 'id = ?', whereArgs: [id]);
 
-  Future<Txn?> findById(int id) async {
+  Future<Txn?> findById(String id) async {
     final rows = await db.query(
       'transactions',
       where: 'id = ?',
@@ -209,12 +266,15 @@ class TxnDao {
   }
 
   /// 批量写入，包在一个事务里。要么全成，要么抛异常。
+  /// id 也在这里补齐 —— batch 拿不到逐行 rowid，uuidv7 没这个问题。
   Future<int> insertAll(Iterable<Txn> txns) async {
     final items = txns.toList();
     if (items.isEmpty) return 0;
     final batch = db.batch();
     for (final t in items) {
-      batch.insert('transactions', t.toMap());
+      final map = t.toMap();
+      map['id'] ??= _uuid.v7();
+      batch.insert('transactions', map);
     }
     await batch.commit(noResult: true);
     return items.length;
@@ -237,8 +297,8 @@ class TxnDao {
   Future<Summary> summary() async {
     final r = await db.rawQuery('''
       SELECT
-        COALESCE(SUM(CASE WHEN direction = 'income'  THEN amount_cents END), 0) AS income,
-        COALESCE(SUM(CASE WHEN direction = 'expense' THEN amount_cents END), 0) AS expense,
+        COALESCE(SUM(CASE WHEN direction = 'income'  THEN cents END), 0) AS income,
+        COALESCE(SUM(CASE WHEN direction = 'expense' THEN cents END), 0) AS expense,
         COUNT(*) AS cnt
       FROM transactions
     ''');
@@ -256,7 +316,7 @@ class TxnDao {
   Future<Map<String, String>> categoryIcons() async {
     final rows = await db.query('category_icon');
     return {
-      for (final r in rows) r['category'] as String: r['icon_name'] as String,
+      for (final r in rows) r['category'] as String: r['icon'] as String,
     };
   }
 
@@ -264,7 +324,7 @@ class TxnDao {
   Future<void> setCategoryIcon(String category, String iconName) async {
     await db.insert('category_icon', {
       'category': category,
-      'icon_name': iconName,
+      'icon': iconName,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 

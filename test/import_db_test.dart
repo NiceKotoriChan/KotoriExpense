@@ -6,6 +6,11 @@ import 'package:kotori_expense/import/bill_parser.dart';
 import 'package:kotori_expense/models.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+/// uuidv7 的形状：36 位，版本位是 7，变体位是 8/9/a/b
+final _uuidV7 = RegExp(
+  r'^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+);
+
 void main() {
   sqfliteFfiInit();
 
@@ -22,7 +27,7 @@ void main() {
 
   tearDown(() => db.close());
 
-  test('表结构与 docs/schema.sql 对齐', () async {
+  test('表结构与 docs/sql.md 对齐', () async {
     final cols = await db.rawQuery('PRAGMA table_info(transactions)');
     expect(cols.map((c) => c['name']).toList(), [
       'id',
@@ -32,9 +37,37 @@ void main() {
       'counterparty',
       'item',
       'direction',
-      'amount_cents',
+      'cents',
       'category',
     ]);
+  });
+
+  test('id 是 DAO 生成的 uuidv7', () async {
+    final id = await dao.insert(
+      const Txn(
+        date: '2026-01-01 00:00:00',
+        direction: 'expense',
+        amountCents: 1,
+      ),
+    );
+    expect(id, matches(_uuidV7));
+
+    final back = await dao.findById(id);
+    expect(back!.id, id);
+    expect(back.amountCents, 1);
+  });
+
+  test('Txn 自带 id 时就用它，不另外生成', () async {
+    final id = await dao.insert(
+      const Txn(
+        id: '0192f0a0-0000-7000-8000-000000000001',
+        date: '2026-01-01 00:00:00',
+        direction: 'expense',
+        amountCents: 2,
+      ),
+    );
+    expect(id, '0192f0a0-0000-7000-8000-000000000001');
+    expect(await dao.count(), 1);
   });
 
   test('支付宝样例导入后能查回来，金额单位是分', () async {
@@ -47,6 +80,11 @@ void main() {
 
     final list = await dao.listAll();
     expect(list, hasLength(6));
+    // 批量导入也逐行给 id，且互不相同
+    final ids = list.map((t) => t.id).toList();
+    expect(ids, everyElement(matches(_uuidV7)));
+    expect(ids.toSet(), hasLength(6));
+
     // 按时间倒序
     expect(list.first.date.compareTo(list.last.date) > 0, isTrue);
     expect(list.first.date, '2026-09-20 14:22:18');

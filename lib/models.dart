@@ -1,7 +1,7 @@
 /// 一条流水，对应 transactions 表的一行。
 class Txn {
-  /// 主键。导入时不指定，交给 SQLite。
-  final int? id;
+  /// 主键，uuidv7。新增时留空，交给 DAO 生成。
+  final String? id;
 
   /// 交易时间，'YYYY-MM-DD HH:MM:SS'
   final String date;
@@ -22,6 +22,7 @@ class Txn {
   final String direction;
 
   /// 交易金额，单位：分，恒为正数。方向看 [direction]。
+  /// 库里这一列叫 `cents`。
   final int amountCents;
 
   /// 交易分类，非枚举
@@ -56,19 +57,19 @@ class Txn {
     'counterparty': counterparty,
     'item': item,
     'direction': direction,
-    'amount_cents': amountCents,
+    'cents': amountCents,
     'category': category,
   };
 
   factory Txn.fromMap(Map<String, Object?> m) => Txn(
-    id: m['id'] as int?,
+    id: m['id'] as String?,
     date: m['date'] as String,
     currency: (m['currency'] as String?) ?? 'CNY',
     type: m['type'] as String?,
     counterparty: m['counterparty'] as String?,
     item: m['item'] as String?,
     direction: m['direction'] as String,
-    amountCents: m['amount_cents'] as int,
+    amountCents: m['cents'] as int,
     category: m['category'] as String?,
   );
 

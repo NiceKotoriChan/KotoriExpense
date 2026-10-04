@@ -110,7 +110,10 @@ void main() {
     });
 
     test('findById 查不到给 null', () async {
-      expect(await dao.findById(999), isNull);
+      expect(
+        await dao.findById('0192f0a0-0000-7000-8000-0000000000ff'),
+        isNull,
+      );
     });
 
     test('knownCategories 是流水分类和配置分类的并集，去重且排序', () async {
@@ -187,6 +190,7 @@ void main() {
 
       await _pushEditor(tester, dao);
       await tester.tap(find.text('收入').last);
+      await settle(tester);
       await tester.enterText(find.byType(TextField).first, '88');
       await tester.tap(find.text('记下'));
       await settle(tester);
@@ -198,30 +202,28 @@ void main() {
   });
 
   group('详情页', () {
-    const stored = Txn(
-      id: 1,
+    const draft = Txn(
       date: '2026-09-01 10:00:00',
       direction: 'expense',
       amountCents: 1234,
       counterparty: 'A',
     );
 
+    /// 详情页得拿一个库里真有的 id，才改得到那一行
+    Txn stored(String id) => Txn(
+      id: id,
+      date: draft.date,
+      direction: draft.direction,
+      amountCents: draft.amountCents,
+      counterparty: draft.counterparty,
+    );
+
     testWidgets('改金额是覆盖，不是新增', (tester) async {
       setView(tester, height: 1000);
       final dao = await openTempDb(tester);
-      await dbCall(
-        tester,
-        () => dao.insert(
-          const Txn(
-            date: '2026-09-01 10:00:00',
-            direction: 'expense',
-            amountCents: 1234,
-            counterparty: 'A',
-          ),
-        ),
-      );
+      final id = await dbCall(tester, () => dao.insert(draft));
 
-      await _pushEditor(tester, dao, stored);
+      await _pushEditor(tester, dao, stored(id));
       expect(find.text('账单详情'), findsOneWidget);
       expect(find.text('保存修改'), findsOneWidget);
 
@@ -229,7 +231,7 @@ void main() {
       await tester.tap(find.text('保存修改'));
       await settle(tester);
 
-      final after = await dbCall(tester, () => dao.findById(1));
+      final after = await dbCall(tester, () => dao.findById(id));
       expect(after!.amountCents, 9900);
       expect(after.counterparty, 'A', reason: '没碰的字段不该被清掉');
       expect(after.date, '2026-09-01 10:00:00', reason: '日期没动过');
@@ -240,19 +242,9 @@ void main() {
     testWidgets('删除要确认，确认后这条就没了', (tester) async {
       setView(tester, height: 1000);
       final dao = await openTempDb(tester);
-      await dbCall(
-        tester,
-        () => dao.insert(
-          const Txn(
-            date: '2026-09-01 10:00:00',
-            direction: 'expense',
-            amountCents: 1234,
-            counterparty: 'A',
-          ),
-        ),
-      );
+      final id = await dbCall(tester, () => dao.insert(draft));
 
-      await _pushEditor(tester, dao, stored);
+      await _pushEditor(tester, dao, stored(id));
       await tester.tap(find.byTooltip('删除'));
       await settle(tester);
       expect(find.text('删除这条流水？'), findsOneWidget);
