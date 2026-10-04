@@ -23,15 +23,9 @@ Color chartColorAt(int i) => kChartPalette[i % kChartPalette.length];
 /// 页面里一块带标题的区块
 class ChartSection extends StatelessWidget {
   final String title;
-  final String? trailing;
   final Widget child;
 
-  const ChartSection({
-    super.key,
-    required this.title,
-    this.trailing,
-    required this.child,
-  });
+  const ChartSection({super.key, required this.title, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -41,12 +35,7 @@ class ChartSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(child: Text(title, style: tt.titleMedium)),
-              if (trailing != null) Text(trailing!, style: tt.bodySmall),
-            ],
-          ),
+          Text(title, style: tt.titleMedium),
           const SizedBox(height: 12),
           child,
         ],

@@ -16,16 +16,6 @@ int dayOf(String date) =>
 
 int daysInMonth(int year, int month) => DateTime(year, month + 1, 0).day;
 
-/// 某个月一号是星期几，1 = 周一 ... 7 = 周日（跟日历列对齐）
-int weekdayOfFirst(int year, int month) => DateTime(year, month, 1).weekday;
-
-List<Txn> inMonth(Iterable<Txn> txns, int year, int month) => txns
-    .where((t) => yearOf(t.date) == year && monthOf(t.date) == month)
-    .toList();
-
-List<Txn> inYear(Iterable<Txn> txns, int year) =>
-    txns.where((t) => yearOf(t.date) == year).toList();
-
 /// [expense] 为 true 取支出，否则取收入
 List<Txn> byDirection(Iterable<Txn> txns, {required bool expense}) =>
     txns.where((t) => t.isExpense == expense).toList();
@@ -116,28 +106,6 @@ List<int> yearsPresent(Iterable<Txn> txns) {
   if (years.isEmpty) years.add(DateTime.now().year);
   final out = years.toList()..sort((a, b) => b.compareTo(a));
   return out;
-}
-
-const List<String> kMonthNames = [
-  '',
-  '1 月',
-  '2 月',
-  '3 月',
-  '4 月',
-  '5 月',
-  '6 月',
-  '7 月',
-  '8 月',
-  '9 月',
-  '10 月',
-  '11 月',
-  '12 月',
-];
-
-/// 月份加减，返回 (year, month)
-({int year, int month}) shiftMonth(int year, int month, int delta) {
-  final total = year * 12 + (month - 1) + delta;
-  return (year: total ~/ 12, month: total % 12 + 1);
 }
 
 String isoDate(int year, int month, int day) =>

@@ -10,8 +10,34 @@ import 'pages/year_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final db = await openAppDb(factory: sqflite.databaseFactory);
-  runApp(KotoriExpenseApp(dao: TxnDao(db)));
+  try {
+    final db = await openAppDb(factory: sqflite.databaseFactory);
+    runApp(KotoriExpenseApp(dao: TxnDao(db)));
+  } catch (e) {
+    runApp(_DbErrorApp(message: '$e'));
+  }
+}
+
+/// 开库失败时给个能看懂的页面，别留白屏
+class _DbErrorApp extends StatelessWidget {
+  final String message;
+
+  const _DbErrorApp({required this.message});
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    debugShowCheckedModeBanner: false,
+    home: Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: SelectableText('打开数据库失败：\n\n$message'),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class KotoriExpenseApp extends StatelessWidget {

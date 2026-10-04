@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../db.dart';
 import '../icons.dart';
-import 'csv_rules_page.dart';
+import 'bill_rules_page.dart';
 import 'icon_mapping_page.dart';
 import 'import_page.dart';
 
@@ -72,12 +72,12 @@ class _SettingsPageState extends State<SettingsPage> {
             const Divider(height: 1),
             ListTile(
               leading: Icon(AppIcons.resolve('tableChart')),
-              title: const Text('映射规则'),
-              subtitle: const Text('一家的账单一条规则，可改名、可改列名'),
+              title: const Text('解析方式'),
+              subtitle: const Text('把文件里的列名对应到表的列名'),
               trailing: Icon(AppIcons.resolve('chevronRight')),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => CsvRulesPage(dao: widget.dao),
+                  builder: (_) => BillRulesPage(dao: widget.dao),
                 ),
               ),
             ),

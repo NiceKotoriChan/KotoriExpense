@@ -1,10 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-/// 这是项目的 icon 集合
 abstract final class AppIcons {
-  static const Map<String, IconData> choices = {
-    // 界面图标（见 uiOnly，不进分类图标选择器）
+  static const Map<String, IconData> uiIcons = {
     'emptyState': Symbols.receipt_long,
     'importBill': Symbols.file_download,
     'pickFile': Symbols.folder_open,
@@ -26,7 +24,9 @@ abstract final class AppIcons {
     'restartAlt': Symbols.restart_alt,
     'tableChart': Symbols.table_chart,
     'palette': Symbols.palette,
-    // 分类图标
+  };
+
+  static const Map<String, IconData> categoryIcons = {
     'restaurant': Symbols.restaurant,
     'local_cafe': Symbols.local_cafe,
     'fastfood': Symbols.fastfood,
@@ -77,36 +77,12 @@ abstract final class AppIcons {
     'more_horiz': Symbols.more_horiz,
   };
 
-  /// 名字认不出来就兜底，不抛异常 —— 图标错了不该让页面崩。
+  /// 取图标接口，加图标兜底
   static IconData resolve(String? iconName) =>
-      choices[iconName] ?? choices['unknownCategory']!;
+      categoryIcons[iconName] ??
+      uiIcons[iconName] ??
+      uiIcons['unknownCategory']!;
 
-  /// 只给界面用，做分类图标选择器时要按这张表过滤掉
-  static const Set<String> uiOnly = {
-    'emptyState',
-    'importBill',
-    'pickFile',
-    'unknownCategory',
-    'tabList',
-    'tabMonth',
-    'tabYear',
-    'tabSettings',
-    'addTxn',
-    'addRule',
-    'search',
-    'deleteTxn',
-    'chevronLeft',
-    'chevronRight',
-    'event',
-    'schedule',
-    'clear',
-    'arrowDropDown',
-    'restartAlt',
-    'tableChart',
-    'palette',
-  };
-
-  /// 分类图标的名字，按定义顺序
-  static List<String> get categoryIconNames =>
-      choices.keys.where((k) => !uiOnly.contains(k)).toList();
+  /// 把分类图标取出为列表
+  static List<String> get categoryIconNames => categoryIcons.keys.toList();
 }

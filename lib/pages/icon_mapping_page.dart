@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../db.dart';
 import '../icons.dart';
 
-/// 分类 -> 图标。改动直接落到 category_icon 表。
+/// 分类 -> 图标。改动直接落到 icons 表。
 class IconMappingPage extends StatefulWidget {
   final TxnDao dao;
 

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../db.dart';
 import '../icons.dart';
-import '../import/bill_parser.dart' show parseAmountCents;
 import '../models.dart';
 import '../stats.dart' show isoDate;
 
