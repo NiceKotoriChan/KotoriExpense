@@ -1,114 +1,92 @@
 import 'package:flutter/material.dart';
 
+import '../bill_visibility.dart';
 import '../db.dart';
 import '../icons.dart';
-import 'bill_rules_page.dart';
+import 'ai_config_page.dart';
+import 'auto_category_page.dart';
 import 'icon_mapping_page.dart';
 import 'import_page.dart';
+import 'records_page.dart';
 
-class SettingsPage extends StatefulWidget {
+class SettingsPage extends StatelessWidget {
   final TxnDao dao;
-  final int refreshToken;
-
-  /// 导入或改配置之后叫外壳刷新其他页
+  final BillVisibility visibility;
   final VoidCallback? onDataChanged;
 
   const SettingsPage({
     super.key,
     required this.dao,
-    required this.refreshToken,
+    required this.visibility,
     this.onDataChanged,
   });
 
-  @override
-  State<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends State<SettingsPage> {
-  int _count = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  @override
-  void didUpdateWidget(covariant SettingsPage old) {
-    super.didUpdateWidget(old);
-    if (old.refreshToken != widget.refreshToken) _load();
-  }
-
-  Future<void> _load() async {
-    final n = await widget.dao.count();
-    if (mounted) setState(() => _count = n);
-  }
-
-  Future<void> _openImport() async {
+  Future<void> _openImport(BuildContext context) async {
     final changed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => ImportPage(dao: widget.dao)),
+      MaterialPageRoute(builder: (_) => ImportPage(dao: dao)),
     );
-    if (changed == true) {
-      widget.onDataChanged?.call();
-      await _load();
-    }
+    if (changed == true) onDataChanged?.call();
+  }
+
+  void _push(BuildContext context, Widget page) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final entries = <({String icon, String title, VoidCallback onTap})>[
+      (
+        icon: 'importBill',
+        title: '导入账单',
+        onTap: () => _openImport(context),
+      ),
+      (
+        icon: 'importRecords',
+        title: '管理账单',
+        onTap: () => _push(
+          context,
+          RecordsPage(
+            dao: dao,
+            visibility: visibility,
+            onDataChanged: onDataChanged,
+          ),
+        ),
+      ),
+      (
+        icon: 'autoCategory',
+        title: '自动分类',
+        onTap: () => _push(
+          context,
+          AutoCategoryPage(dao: dao, onDataChanged: onDataChanged),
+        ),
+      ),
+      (
+        icon: 'palette',
+        title: '图标映射',
+        onTap: () =>
+            _push(context, IconMappingPage(dao: dao, onChanged: onDataChanged)),
+      ),
+      (
+        icon: 'aiConfig',
+        title: '模型配置',
+        onTap: () => _push(context, AiConfigPage(dao: dao)),
+      ),
+    ];
+
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: ListView(
           children: [
-            ListTile(
-              leading: Icon(AppIcons.resolve('importBill')),
-              title: const Text('导入账单'),
-              subtitle: const Text('CSV / TSV / XLSX'),
-              trailing: Icon(AppIcons.resolve('chevronRight')),
-              onTap: _openImport,
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: Icon(AppIcons.resolve('tableChart')),
-              title: const Text('解析方式'),
-              subtitle: const Text('把文件里的列名对应到表的列名'),
-              trailing: Icon(AppIcons.resolve('chevronRight')),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => BillRulesPage(dao: widget.dao),
-                ),
+            for (var i = 0; i < entries.length; i++) ...[
+              if (i > 0) const Divider(height: 1),
+              ListTile(
+                leading: Icon(AppIcons.resolve(entries[i].icon)),
+                title: Text(entries[i].title),
+                trailing: Icon(AppIcons.resolve('chevronRight')),
+                onTap: entries[i].onTap,
               ),
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: Icon(AppIcons.resolve('palette')),
-              title: const Text('渲染 ICON 与分类映射'),
-              subtitle: const Text('每个分类用哪个图标'),
-              trailing: Icon(AppIcons.resolve('chevronRight')),
-              onTap: () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => IconMappingPage(
-                      dao: widget.dao,
-                      onChanged: widget.onDataChanged,
-                    ),
-                  ),
-                );
-                await _load();
-              },
-            ),
-            const Divider(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                '库里现有 $_count 条流水',
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: cs.onSurfaceVariant),
-              ),
-            ),
-            const SizedBox(height: 24),
+            ],
           ],
         ),
       ),

@@ -3,11 +3,8 @@ import 'package:flutter/material.dart';
 import '../db.dart';
 import '../icons.dart';
 
-/// 分类 -> 图标。改动直接落到 icons 表。
 class IconMappingPage extends StatefulWidget {
   final TxnDao dao;
-
-  /// 有什么改动时通知外壳（列表页的图标要跟着变）
   final VoidCallback? onChanged;
 
   const IconMappingPage({super.key, required this.dao, this.onChanged});
@@ -18,6 +15,7 @@ class IconMappingPage extends StatefulWidget {
 
 class _IconMappingPageState extends State<IconMappingPage> {
   Map<String, String> _mapping = const {};
+  List<String> _categories = const [];
   bool _loading = true;
 
   @override
@@ -28,9 +26,11 @@ class _IconMappingPageState extends State<IconMappingPage> {
 
   Future<void> _load() async {
     final m = await widget.dao.categoryIcons();
+    final c = await widget.dao.knownCategories();
     if (!mounted) return;
     setState(() {
       _mapping = m;
+      _categories = c;
       _loading = false;
     });
   }
@@ -43,42 +43,60 @@ class _IconMappingPageState extends State<IconMappingPage> {
     await _load();
   }
 
-  Future<void> _reset(String category) async {
-    await widget.dao.resetCategoryIcon(category);
+  Future<void> _clear(String category) async {
+    await widget.dao.clearCategoryIcon(category);
     widget.onChanged?.call();
     await _load();
   }
 
   @override
   Widget build(BuildContext context) {
-    final categories = _mapping.keys.toList()..sort();
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final categories = _categories;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('分类图标')),
+      appBar: AppBar(title: const Text('图标映射')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : categories.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(AppIcons.resolve('palette'), size: 48, color: cs.outline),
+                  const SizedBox(height: 12),
+                  Text(
+                    '还没有分类',
+                    style: tt.bodyMedium?.copyWith(color: cs.outline),
+                  ),
+                ],
+              ),
+            )
           : ListView.separated(
               itemCount: categories.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (_, i) {
                 final c = categories[i];
+                final icon = _mapping[c];
                 return ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest,
+                    backgroundColor: cs.surfaceContainerHighest,
                     child: Icon(
-                      AppIcons.resolve(_mapping[c]),
+                      AppIcons.resolve(icon),
                       size: 20,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                   title: Text(c),
-                  subtitle: Text(_mapping[c] ?? ''),
-                  trailing: IconButton(
-                    onPressed: () => _reset(c),
-                    icon: Icon(AppIcons.resolve('restartAlt')),
-                    tooltip: '恢复默认',
-                  ),
+                  subtitle: icon == null ? null : Text(icon),
+                  trailing: icon == null
+                      ? null
+                      : IconButton(
+                          onPressed: () => _clear(c),
+                          icon: Icon(AppIcons.resolve('restartAlt')),
+                          tooltip: '清除映射',
+                        ),
                   onTap: () => _pick(c),
                 );
               },
@@ -122,8 +140,6 @@ Future<String?> _showIconPicker(BuildContext context, String? current) {
                 itemBuilder: (_, i) {
                   final name = names[i];
                   final selected = name == current;
-                  // 用 Material 垫底而不是 DecoratedBox —— 后者画在墨水层之上，
-                  // 点下去的水波纹会被颜色盖住看不见。
                   return Material(
                     color: selected ? cs.primaryContainer : Colors.transparent,
                     borderRadius: BorderRadius.circular(12),

@@ -5,7 +5,6 @@ import '../icons.dart';
 import '../models.dart';
 import '../stats.dart';
 
-/// 按天分组的紧凑流水列表。列表页和搜索页共用。
 class TxnDayList extends StatelessWidget {
   final List<Txn> txns;
   final Map<String, String> categoryIcons;
@@ -59,7 +58,6 @@ class _TxnRow extends _Row {
   const _TxnRow(this.txn);
 }
 
-/// 某一天的分隔条：日期 + 当天进出合计
 class _DayHeader extends StatelessWidget {
   final DayGroup group;
 
@@ -98,7 +96,6 @@ class _DayHeader extends StatelessWidget {
   }
 }
 
-/// 一条流水。dense + compact，比默认 ListTile 矮一截。
 class TxnCompactTile extends StatelessWidget {
   final Txn txn;
   final Map<String, String> categoryIcons;

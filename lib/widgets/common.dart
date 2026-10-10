@@ -3,10 +3,9 @@ import 'package:flutter/material.dart';
 
 import '../db.dart';
 import '../icons.dart';
+import '../import/ai_parser.dart';
 import '../models.dart';
-import '../stats.dart';
 
-/// 支出视图 / 收入视图 切换：两个文字按钮，当前那个用主色加粗。
 class DirectionToggle extends StatelessWidget {
   final bool expense;
   final ValueChanged<bool> onChanged;
@@ -66,7 +65,6 @@ class _ViewButton extends StatelessWidget {
   }
 }
 
-/// 左上角的时间切换按钮：点开弹框选时间。
 class RangeButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
@@ -96,14 +94,89 @@ class RangeButton extends StatelessWidget {
   }
 }
 
-/// 时间选择的年份范围
+Future<String?> showTextDialog(
+  BuildContext context, {
+  required String title,
+  String initial = '',
+  String? hint,
+  String confirmText = '保存',
+}) {
+  return showDialog<String>(
+    context: context,
+    builder: (_) =>
+        _TextDialog(title: title, initial: initial, hint: hint, confirmText: confirmText),
+  );
+}
+
+class _TextDialog extends StatefulWidget {
+  final String title;
+  final String initial;
+  final String? hint;
+  final String confirmText;
+
+  const _TextDialog({
+    required this.title,
+    required this.initial,
+    this.hint,
+    required this.confirmText,
+  });
+
+  @override
+  State<_TextDialog> createState() => _TextDialogState();
+}
+
+class _TextDialogState extends State<_TextDialog> {
+  late final TextEditingController _ctrl = TextEditingController(
+    text: widget.initial,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _ctrl.text.length,
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() => Navigator.pop(context, _ctrl.text.trim());
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _ctrl,
+        autofocus: true,
+        decoration: InputDecoration(
+          hintText: widget.hint,
+          border: const OutlineInputBorder(),
+        ),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(onPressed: _submit, child: Text(widget.confirmText)),
+      ],
+    );
+  }
+}
+
 const int _pickerMinYear = 1970;
 
 int get _pickerMaxYear => DateTime.now().year + 1;
 
 const double _wheelItemExtent = 40;
 
-/// 选年月：两个滚轮，左边年、右边月。取消返回 null。
 Future<({int year, int month})?> showMonthWheelPicker(
   BuildContext context, {
   required int year,
@@ -115,7 +188,6 @@ Future<({int year, int month})?> showMonthWheelPicker(
   );
 }
 
-/// 选年份：一列滚轮。取消返回 null。
 Future<int?> showYearWheelPicker(
   BuildContext context, {
   required int year,
@@ -127,11 +199,8 @@ Future<int?> showYearWheelPicker(
   return r?.year;
 }
 
-/// Material 里没有「滚轮选年月」这种弹框，用的是 Flutter 自带的 [CupertinoPicker]。
 class _WheelDialog extends StatefulWidget {
   final int initialYear;
-
-  /// 给了才有月份那一列
   final int? initialMonth;
 
   const _WheelDialog({required this.initialYear, this.initialMonth});
@@ -170,7 +239,6 @@ class _WheelDialogState extends State<_WheelDialog> {
     super.dispose();
   }
 
-  /// 取滚轮停住的那一格，不是打开时那一格
   void _confirm() {
     final month = _monthController;
     Navigator.of(context).pop((
@@ -214,7 +282,6 @@ class _WheelDialogState extends State<_WheelDialog> {
     final style = Theme.of(context).textTheme.titleMedium
         ?.copyWith(color: cs.onSurface);
 
-    // 选中底色不自己画：那层是画在文字上面的，换成不透明色会把中间那行盖住。
     return CupertinoPicker(
       itemExtent: _wheelItemExtent,
       scrollController: controller,
@@ -226,7 +293,6 @@ class _WheelDialogState extends State<_WheelDialog> {
   }
 }
 
-/// 区间合计
 class TotalRow extends StatelessWidget {
   final bool expense;
   final int cents;
@@ -272,9 +338,101 @@ class TotalRow extends StatelessWidget {
   }
 }
 
-/// 分类排行。带图标和占比条，跟列表页的图标映射用同一份配置。
+class AiTraceView extends StatelessWidget {
+  final AiTrace trace;
+  final String? outcome;
+
+  const AiTraceView({super.key, required this.trace, this.outcome});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final t = trace;
+
+    final request = <Widget>[
+      Text(t.endpoint),
+      if (t.model.isNotEmpty) Text('model: ${t.model}'),
+      if (t.system != null) _oneLine('提示词：${t.system}'),
+      _oneLine('发送 ${t.userChars} 字：${t.user}'),
+    ];
+
+    final response = <Widget>[
+      if (t.status == null)
+        Text(t.error ?? '没有响应', style: TextStyle(color: cs.error))
+      else ...[
+        Text(
+          'HTTP ${t.status} · ${t.elapsedMs} ms',
+          style: TextStyle(color: t.ok ? cs.primary : cs.error),
+        ),
+        if (t.error != null) Text(t.error!, style: TextStyle(color: cs.error)),
+        if (!t.ok && t.body.isNotEmpty) _dump(t.body, cs.onSurfaceVariant),
+        if (t.reply != null) _dump('回答 ${t.reply!.length} 字：${t.reply}'),
+      ],
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: cs.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _row(context, '请求', request),
+          const SizedBox(height: 12),
+          _row(context, '响应', response),
+          if (outcome != null) ...[
+            const SizedBox(height: 12),
+            _row(context, '解析', [
+              Text(outcome!, style: TextStyle(color: cs.primary)),
+            ]),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _oneLine(String text) =>
+      Text(text, maxLines: 1, overflow: TextOverflow.ellipsis);
+
+  Widget _dump(String text, [Color? color]) => Text(
+    _flatten(text),
+    maxLines: 6,
+    overflow: TextOverflow.ellipsis,
+    style: color == null ? null : TextStyle(color: color),
+  );
+
+  String _flatten(String s) {
+    final t = s.trim().replaceAll(RegExp(r'\s+'), ' ');
+    return t.length > kTraceBodyChars ? '${t.substring(0, kTraceBodyChars)}…' : t;
+  }
+
+  Widget _row(BuildContext context, String label, List<Widget> lines) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 48,
+          child: Text(label, style: TextStyle(color: cs.onSurfaceVariant)),
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final l in lines)
+                Padding(padding: const EdgeInsets.only(bottom: 2), child: l),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class RankedList extends StatelessWidget {
-  final List<CategorySum> items;
+  final List<Txn> items;
   final int totalCents;
   final bool expense;
   final Map<String, String> categoryIcons;
@@ -287,106 +445,154 @@ class RankedList extends StatelessWidget {
     this.categoryIcons = const {},
   });
 
+  static String _title(Txn t) {
+    for (final v in [t.counterparty, t.item, t.type, t.category]) {
+      if (v != null && v.trim().isNotEmpty) return v;
+    }
+    return '未分类';
+  }
+
+  static String _caption(Txn t, int totalCents) {
+    final date = t.date.length >= 10 ? t.date.substring(5, 10) : t.date;
+    final percent = totalCents <= 0
+        ? 0
+        : (t.amountCents / totalCents * 100).round();
+    return '$date · $percent%';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) return const SizedBox(height: 40);
 
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    final color = expense ? cs.error : cs.primary;
-    final maxCents = items.first.cents;
+    final maxCents = items.first.amountCents;
 
     return Column(
       children: [
         for (var i = 0; i < items.length; i++)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            child: Row(
+          _RankedRow(
+            rank: i + 1,
+            txn: items[i],
+            maxCents: maxCents,
+            totalCents: totalCents,
+            expense: expense,
+            categoryIcons: categoryIcons,
+          ),
+      ],
+    );
+  }
+}
+
+class _RankedRow extends StatelessWidget {
+  final int rank;
+  final Txn txn;
+  final int maxCents;
+  final int totalCents;
+  final bool expense;
+  final Map<String, String> categoryIcons;
+
+  const _RankedRow({
+    required this.rank,
+    required this.txn,
+    required this.maxCents,
+    required this.totalCents,
+    required this.expense,
+    required this.categoryIcons,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final color = expense ? cs.error : cs.primary;
+
+    final title = RankedList._title(txn);
+    final category = txn.category;
+    final label = category == null || category == title
+        ? title
+        : '$title · $category';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 20,
+            child: Text(
+              '$rank',
+              textAlign: TextAlign.center,
+              style: tt.labelMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          CircleAvatar(
+            radius: 15,
+            backgroundColor: cs.surfaceContainerHighest,
+            child: Icon(
+              AppIcons.resolve(iconNameForCategory(category, categoryIcons)),
+              size: 16,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(
-                  width: 20,
-                  child: Text(
-                    '${i + 1}',
-                    textAlign: TextAlign.center,
-                    style: tt.labelMedium?.copyWith(
-                      color: cs.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                CircleAvatar(
-                  radius: 15,
-                  backgroundColor: cs.surfaceContainerHighest,
-                  child: Icon(
-                    AppIcons.resolve(
-                      iconNameForCategory(items[i].category, categoryIcons),
-                    ),
-                    size: 16,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              items[i].category,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: tt.bodyMedium,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            formatCents(items[i].cents),
-                            style: tt.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: tt.bodyMedium,
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(2),
-                              child: LinearProgressIndicator(
-                                value: maxCents <= 0
-                                    ? 0
-                                    : items[i].cents / maxCents,
-                                minHeight: 4,
-                                backgroundColor: cs.surfaceContainerHighest,
-                                color: color,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            width: 56,
-                            child: Text(
-                              '${items[i].count} 笔 · '
-                              '${totalCents <= 0 ? 0 : (items[i].cents / totalCents * 100).toStringAsFixed(0)}%',
-                              textAlign: TextAlign.right,
-                              style: tt.labelSmall?.copyWith(
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ],
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${expense ? '-' : '+'}${formatCents(txn.amountCents)}',
+                      style: tt.bodyMedium?.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w600,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: LinearProgressIndicator(
+                          value: maxCents <= 0 ? 0 : txn.amountCents / maxCents,
+                          minHeight: 4,
+                          backgroundColor: cs.surfaceContainerHighest,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 76,
+                      child: Text(
+                        RankedList._caption(txn, totalCents),
+                        textAlign: TextAlign.right,
+                        style: tt.labelSmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-      ],
+        ],
+      ),
     );
   }
 }

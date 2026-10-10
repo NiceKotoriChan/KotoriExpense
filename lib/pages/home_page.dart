@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 
+import '../bill_visibility.dart';
 import '../db.dart';
 import '../icons.dart';
 import '../models.dart';
+import '../stats.dart';
 import '../widgets/txn_list.dart';
 import 'search_page.dart';
 import 'txn_edit_page.dart';
 
-/// 流水列表 + 收支汇总
 class HomePage extends StatefulWidget {
   final TxnDao dao;
+  final BillVisibility visibility;
   final int refreshToken;
   final VoidCallback? onDataChanged;
 
   const HomePage({
     super.key,
     required this.dao,
+    required this.visibility,
     this.refreshToken = 0,
     this.onDataChanged,
   });
@@ -26,7 +29,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   List<Txn> _txns = const [];
-  Summary _summary = const Summary(incomeCents: 0, expenseCents: 0, count: 0);
   Map<String, String> _categoryIcons = const {};
   bool _loading = true;
 
@@ -43,19 +45,16 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _reload() async {
-    final txns = await widget.dao.listAll();
-    final sum = await widget.dao.summary();
+    final all = await widget.dao.listAll();
     final icons = await widget.dao.categoryIcons();
     if (!mounted) return;
     setState(() {
-      _txns = txns;
-      _summary = sum;
+      _txns = widget.visibility.visible(all);
       _categoryIcons = icons;
       _loading = false;
     });
   }
 
-  /// [txn] 为空就是记账，否则打开详情
   Future<void> _openEditor([Txn? txn]) async {
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
@@ -70,7 +69,10 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _openSearch() async {
     final changed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => SearchPage(dao: widget.dao)),
+      MaterialPageRoute(
+        builder: (_) =>
+            SearchPage(dao: widget.dao, visibility: widget.visibility),
+      ),
     );
     if (changed == true) {
       widget.onDataChanged?.call();
@@ -92,7 +94,7 @@ class _HomePageState extends State<HomePage> {
                       onRefresh: _reload,
                       child: Column(
                         children: [
-                          _SummaryBar(summary: _summary),
+                          _SummaryBar(txns: _txns),
                           Expanded(
                             child: _txns.isEmpty
                                 ? const _EmptyHint()
@@ -106,9 +108,6 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-                  // 搜索放左下角，跟右下角的记账对称。
-                  // 不走 Scaffold 的 FAB 槽：那里一个槽位放两个按钮要自己算位置，
-                  // 直接贴在 body 上更确定（bottom 16 与标准 FAB 的下边距一致）。
                   Positioned(
                     left: 16,
                     bottom: 16,
@@ -133,13 +132,15 @@ class _HomePageState extends State<HomePage> {
 }
 
 class _SummaryBar extends StatelessWidget {
-  final Summary summary;
+  final List<Txn> txns;
 
-  const _SummaryBar({required this.summary});
+  const _SummaryBar({required this.txns});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final expense = totalCents(byDirection(txns, expense: true));
+    final income = totalCents(byDirection(txns, expense: false));
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
@@ -147,17 +148,9 @@ class _SummaryBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _Metric(
-            label: '支出',
-            text: formatCents(summary.expenseCents),
-            color: cs.error,
-          ),
-          _Metric(
-            label: '收入',
-            text: formatCents(summary.incomeCents),
-            color: cs.primary,
-          ),
-          _Metric(label: '笔数', text: '${summary.count}', color: cs.onSurface),
+          _Metric(label: '支出', text: formatCents(expense), color: cs.error),
+          _Metric(label: '收入', text: formatCents(income), color: cs.primary),
+          _Metric(label: '笔数', text: '${txns.length}', color: cs.onSurface),
         ],
       ),
     );

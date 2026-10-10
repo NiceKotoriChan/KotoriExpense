@@ -1,24 +1,31 @@
 import 'package:flutter/material.dart';
 
+import '../bill_visibility.dart';
 import '../db.dart';
 import '../models.dart';
 import '../stats.dart';
 import '../widgets/charts.dart';
 import '../widgets/common.dart';
 
-/// 年度：切换年 + 支出/收入切换 + 月度对比柱状图 + 分类饼图 + Top 10
 class YearPage extends StatefulWidget {
   final TxnDao dao;
+  final BillVisibility visibility;
   final int refreshToken;
 
-  const YearPage({super.key, required this.dao, required this.refreshToken});
+  const YearPage({
+    super.key,
+    required this.dao,
+    required this.visibility,
+    required this.refreshToken,
+  });
 
   @override
   State<YearPage> createState() => _YearPageState();
 }
 
 class _YearPageState extends State<YearPage> {
-  late int _year;
+  int _year = DateTime.now().year;
+  bool _located = false;
   bool _expense = true;
   bool _loading = true;
   List<Txn> _txns = const [];
@@ -27,7 +34,6 @@ class _YearPageState extends State<YearPage> {
   @override
   void initState() {
     super.initState();
-    _year = DateTime.now().year;
     _load();
   }
 
@@ -38,6 +44,14 @@ class _YearPageState extends State<YearPage> {
   }
 
   Future<void> _load() async {
+    if (!_located) {
+      _located = true;
+      final latest = await widget.dao.latestDate();
+      if (latest != null) {
+        final y = yearOf(latest);
+        if (y > 0) _year = y;
+      }
+    }
     final txns = await widget.dao.listRange(
       isoDate(_year, 1, 1),
       isoDate(_year, 12, 31),
@@ -45,7 +59,7 @@ class _YearPageState extends State<YearPage> {
     final icons = await widget.dao.categoryIcons();
     if (!mounted) return;
     setState(() {
-      _txns = txns;
+      _txns = widget.visibility.visible(txns);
       _categoryIcons = icons;
       _loading = false;
     });
@@ -111,7 +125,7 @@ class _YearPageState extends State<YearPage> {
                   ChartSection(
                     title: _expense ? '消费排行 Top 10' : '盈利排行 Top 10',
                     child: RankedList(
-                      items: topCategories(filtered),
+                      items: topTxns(filtered),
                       totalCents: totalCents(filtered),
                       expense: _expense,
                       categoryIcons: _categoryIcons,

@@ -5,7 +5,6 @@ abstract final class AppIcons {
   static const Map<String, IconData> uiIcons = {
     'emptyState': Symbols.receipt_long,
     'importBill': Symbols.file_download,
-    'pickFile': Symbols.folder_open,
     'unknownCategory': Symbols.receipt_long,
     'tabList': Symbols.receipt_long,
     'tabMonth': Symbols.calendar_month,
@@ -18,12 +17,16 @@ abstract final class AppIcons {
     'chevronLeft': Symbols.chevron_left,
     'chevronRight': Symbols.chevron_right,
     'event': Symbols.event,
-    'schedule': Symbols.schedule,
     'clear': Symbols.clear,
     'arrowDropDown': Symbols.arrow_drop_down,
     'restartAlt': Symbols.restart_alt,
     'tableChart': Symbols.table_chart,
     'palette': Symbols.palette,
+    'aiConfig': Symbols.smart_toy,
+    'importRecords': Symbols.history,
+    'moreActions': Symbols.more_vert,
+    'autoCategory': Symbols.rule,
+    'recategorize': Symbols.autorenew,
   };
 
   static const Map<String, IconData> categoryIcons = {
@@ -77,12 +80,10 @@ abstract final class AppIcons {
     'more_horiz': Symbols.more_horiz,
   };
 
-  /// 取图标接口，加图标兜底
   static IconData resolve(String? iconName) =>
       categoryIcons[iconName] ??
       uiIcons[iconName] ??
       uiIcons['unknownCategory']!;
 
-  /// 把分类图标取出为列表
   static List<String> get categoryIconNames => categoryIcons.keys.toList();
 }

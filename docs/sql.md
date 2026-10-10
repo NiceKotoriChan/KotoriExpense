@@ -1,4 +1,4 @@
-- 交易时间：xxxx-xx-xx
+- 交易时间：xxxx-xx-xx 只涉及日期，不涉及小时分钟
 - 交易类型：对应招行交易摘要，支付宝付款方式
 - 交易对象
 - 交易商品
@@ -11,3 +11,12 @@
 同一个毫秒内生成的多行之间没有先后保证（那 74 位是纯随机）。
 
 entries.amount 单位为小数点后两位
+
+records 表存导入的账单名，手动记账则需要用户自己填
+
+records.name 支持修改
+
+records 和 entries 有强绑定关系，
+
+当所有 record 相关 entries 删除时，record 自动删除
+当删除 record 时，所有相关 entries 自动删除

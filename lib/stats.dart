@@ -1,10 +1,5 @@
 import 'models.dart';
 
-/// 流水聚合。纯 Dart，不碰 Flutter，也不碰数据库 —— 页面拿到的是一整段
-/// 流水，这里只负责算。个人记账数据量很小，全部在 Dart 侧算比写 SQL 好维护。
-
-/// date 形如 'YYYY-MM-DD HH:MM:SS'，直接切字符串，不经过 DateTime
-/// （免去时区/夏令时的幺蛾子）。
 int yearOf(String date) =>
     date.length >= 4 ? (int.tryParse(date.substring(0, 4)) ?? 0) : 0;
 
@@ -16,7 +11,6 @@ int dayOf(String date) =>
 
 int daysInMonth(int year, int month) => DateTime(year, month + 1, 0).day;
 
-/// [expense] 为 true 取支出，否则取收入
 List<Txn> byDirection(Iterable<Txn> txns, {required bool expense}) =>
     txns.where((t) => t.isExpense == expense).toList();
 
@@ -24,7 +18,6 @@ int totalCents(Iterable<Txn> txns) =>
     txns.fold(0, (sum, t) => sum + t.amountCents);
 
 class CategorySum {
-  /// 分类为空的一律归到「未分类」
   final String category;
   final int cents;
   final int count;
@@ -38,7 +31,6 @@ class CategorySum {
   static const String uncategorized = '未分类';
 }
 
-/// 按分类合计，金额从大到小
 List<CategorySum> sumByCategory(Iterable<Txn> txns) {
   final cents = <String, int>{};
   final count = <String, int>{};
@@ -60,7 +52,6 @@ List<CategorySum> sumByCategory(Iterable<Txn> txns) {
   return out;
 }
 
-/// 日历图用。返回长度 daysInMonth+1 的数组，下标就是日（0 位不用）。
 List<int> dailyTotals(Iterable<Txn> txns, int year, int month) {
   final out = List<int>.filled(daysInMonth(year, month) + 1, 0);
   for (final t in txns) {
@@ -70,7 +61,6 @@ List<int> dailyTotals(Iterable<Txn> txns, int year, int month) {
   return out;
 }
 
-/// 年度柱状图用。返回长度 13 的数组，下标就是月（0 位不用）。
 List<int> monthlyTotals(Iterable<Txn> txns, int year) {
   final out = List<int>.filled(13, 0);
   for (final t in txns) {
@@ -80,38 +70,21 @@ List<int> monthlyTotals(Iterable<Txn> txns, int year) {
   return out;
 }
 
-/// 排行前 [limit] 名。[by] 决定按什么排：默认金额，可换成笔数。
-List<CategorySum> topCategories(
-  Iterable<Txn> txns, {
-  int limit = 10,
-  bool byCount = false,
-}) {
-  final list = sumByCategory(txns);
-  if (byCount) {
-    list.sort((a, b) {
-      final c = b.count.compareTo(a.count);
-      return c != 0 ? c : b.cents.compareTo(a.cents);
-    });
-  }
+List<Txn> topTxns(Iterable<Txn> txns, {int limit = 10}) {
+  final list = txns.toList();
+  list.sort((a, b) {
+    final cents = b.amountCents.compareTo(a.amountCents);
+    if (cents != 0) return cents;
+    final date = b.date.compareTo(a.date);
+    if (date != 0) return date;
+    return (b.id ?? '').compareTo(a.id ?? '');
+  });
   return list.length > limit ? list.sublist(0, limit) : list;
-}
-
-/// 数据里出现过的年份，倒序；空数据时给当前年
-List<int> yearsPresent(Iterable<Txn> txns) {
-  final years = <int>{};
-  for (final t in txns) {
-    final y = yearOf(t.date);
-    if (y > 0) years.add(y);
-  }
-  if (years.isEmpty) years.add(DateTime.now().year);
-  final out = years.toList()..sort((a, b) => b.compareTo(a));
-  return out;
 }
 
 String isoDate(int year, int month, int day) =>
     '$year-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
 
-/// 把长尾并成一条「其他 N 类」，免得饼图切成十几片看不清
 List<CategorySum> collapseTail(
   List<CategorySum> sums, {
   int limit = 8,
@@ -129,9 +102,7 @@ List<CategorySum> collapseTail(
   ];
 }
 
-/// 同一天的流水打包在一起
 class DayGroup {
-  /// 'YYYY-MM-DD'
   final String date;
   final List<Txn> txns;
   final int expenseCents;
@@ -145,8 +116,6 @@ class DayGroup {
   });
 }
 
-/// 按天分组。入参需已按时间倒序（`listAll` / `listRange` / `search` 都是），
-/// 这里只按日期切段，不重排。
 List<DayGroup> groupByDay(Iterable<Txn> txns) {
   final order = <String>[];
   final map = <String, List<Txn>>{};
@@ -174,7 +143,6 @@ List<DayGroup> groupByDay(Iterable<Txn> txns) {
   ];
 }
 
-/// '2026-09-03' -> '9月3日 周三'，今天和昨天就直接说今天昨天
 String dayLabel(String date, {DateTime? today}) {
   final d = DateTime.tryParse(date);
   if (d == null) return date;

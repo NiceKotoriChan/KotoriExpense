@@ -5,10 +5,6 @@ import '../icons.dart';
 import '../models.dart';
 import '../stats.dart' show isoDate;
 
-/// 新建 / 查看 / 修改 一条流水。
-///
-/// [txn] 为空就是记账，否则是详情 —— 两者的表单是同一套，
-/// 详情模式多一个删除入口。
 class TxnEditPage extends StatefulWidget {
   final TxnDao dao;
   final Txn? txn;
@@ -23,7 +19,6 @@ class TxnEditPage extends StatefulWidget {
 
 class _TxnEditPageState extends State<TxnEditPage> {
   late DateTime _when;
-  late int _second;
   late bool _expense;
   bool _busy = false;
   String? _error;
@@ -43,14 +38,10 @@ class _TxnEditPageState extends State<TxnEditPage> {
     final t = widget.txn;
     if (t == null) {
       _when = DateTime.now();
-      _second = _when.second;
       _expense = true;
       _currency.text = 'CNY';
     } else {
-      // 后端存的是 'YYYY-MM-DD HH:MM:SS'，DateTime.parse 认这个写法
-      final parsed = DateTime.tryParse(t.date) ?? DateTime.now();
-      _when = parsed;
-      _second = parsed.second;
+      _when = DateTime.tryParse(t.date) ?? DateTime.now();
       _expense = t.isExpense;
       _currency.text = t.currency;
       _amount.text = (t.amountCents / 100).toStringAsFixed(2);
@@ -83,9 +74,6 @@ class _TxnEditPageState extends State<TxnEditPage> {
 
   String get _dateText => isoDate(_when.year, _when.month, _when.day);
 
-  String get _timeText =>
-      '${_when.hour.toString().padLeft(2, '0')}:${_when.minute.toString().padLeft(2, '0')}';
-
   String? _trimmed(TextEditingController c) {
     final v = c.text.trim();
     return v.isEmpty ? null : v;
@@ -99,33 +87,13 @@ class _TxnEditPageState extends State<TxnEditPage> {
       lastDate: DateTime(2100),
     );
     if (d == null || !mounted) return;
-    setState(
-      () => _when = DateTime(d.year, d.month, d.day, _when.hour, _when.minute),
-    );
-  }
-
-  Future<void> _pickTime() async {
-    final t = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(_when),
-    );
-    if (t == null || !mounted) return;
-    setState(
-      () => _when = DateTime(
-        _when.year,
-        _when.month,
-        _when.day,
-        t.hour,
-        t.minute,
-      ),
-    );
+    setState(() => _when = d);
   }
 
   Future<void> _pickCategory() async {
     final list = await widget.dao.knownCategories();
     if (!mounted) return;
 
-    // 返回 '' 表示清空，null 表示取消
     final picked = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -162,7 +130,7 @@ class _TxnEditPageState extends State<TxnEditPage> {
 
     final txn = Txn(
       id: widget.txn?.id,
-      date: '$_dateText $_timeText:${_second.toString().padLeft(2, '0')}',
+      date: _dateText,
       currency: _currency.text.trim().isEmpty ? 'CNY' : _currency.text.trim(),
       type: _trimmed(_type),
       counterparty: _trimmed(_counterparty),
@@ -178,7 +146,7 @@ class _TxnEditPageState extends State<TxnEditPage> {
     });
     try {
       if (widget.isNew) {
-        await widget.dao.insert(txn);
+        await widget.dao.insert(txn, source: kManualRecordName);
       } else {
         await widget.dao.update(txn);
       }
@@ -289,12 +257,6 @@ class _TxnEditPageState extends State<TxnEditPage> {
             label: '日期',
             value: _dateText,
             onTap: _busy ? null : _pickDate,
-          ),
-          _DateRow(
-            icon: AppIcons.resolve('schedule'),
-            label: '时间',
-            value: _timeText,
-            onTap: _busy ? null : _pickTime,
           ),
           const SizedBox(height: 12),
           TextField(

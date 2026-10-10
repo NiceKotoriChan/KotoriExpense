@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../models.dart';
 
-/// 饼图配色。中间调，浅色深色主题下都看得清。
 const List<Color> kChartPalette = [
   Color(0xFF3F7D6E),
   Color(0xFFE8A33D),
@@ -20,7 +19,6 @@ const List<Color> kChartPalette = [
 
 Color chartColorAt(int i) => kChartPalette[i % kChartPalette.length];
 
-/// 页面里一块带标题的区块
 class ChartSection extends StatelessWidget {
   final String title;
   final Widget child;
@@ -44,7 +42,6 @@ class ChartSection extends StatelessWidget {
   }
 }
 
-/// 空数据时的占位
 class ChartEmpty extends StatelessWidget {
   final String text;
 
@@ -71,7 +68,6 @@ class ChartSlice {
   const ChartSlice(this.label, this.value);
 }
 
-/// 环形饼图 + 图例。[onTap] 传了就能点图例（暂时没用上，留给联动）。
 class PieChart extends StatelessWidget {
   final List<ChartSlice> slices;
   final double size;
@@ -181,7 +177,6 @@ class _DonutPainter extends CustomPainter {
       old.strokeWidth != strokeWidth || !identical(old.values, values);
 }
 
-/// 竖直柱状图。给年度页画 12 个月。
 class BarChart extends StatelessWidget {
   final List<int> values;
   final List<String> labels;
@@ -254,12 +249,10 @@ class BarChart extends StatelessWidget {
   }
 }
 
-/// 月历热力图。格子越深花得越多。
 class CalendarHeatmap extends StatelessWidget {
   final int year;
   final int month;
 
-  /// 下标就是日（0 位不用）
   final List<int> dailyTotals;
   final Color color;
 
@@ -282,7 +275,7 @@ class CalendarHeatmap extends StatelessWidget {
     if (days <= 0) return const ChartEmpty();
 
     final maxValue = dailyTotals.fold<int>(0, math.max);
-    final leading = DateTime(year, month, 1).weekday - 1; // 周一打头
+    final leading = DateTime(year, month, 1).weekday - 1;
 
     final cells = <Widget?>[
       ...List<Widget?>.filled(leading, null),
@@ -338,7 +331,6 @@ class CalendarHeatmap extends StatelessWidget {
   Widget _dayCell(BuildContext context, int day, int maxValue) {
     final cs = Theme.of(context).colorScheme;
     final value = dailyTotals[day];
-    // 0.10 起步，免得最小的一笔看起来跟没有一样
     final intensity = maxValue <= 0 ? 0.0 : 0.10 + 0.75 * (value / maxValue);
 
     return DecoratedBox(

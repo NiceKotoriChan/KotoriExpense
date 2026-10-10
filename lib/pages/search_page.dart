@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 
+import '../bill_visibility.dart';
 import '../db.dart';
 import '../icons.dart';
 import '../models.dart';
 import '../widgets/txn_list.dart';
 import 'txn_edit_page.dart';
 
-/// 搜交易对象 / 商品 / 分类 / 类型，结果也按天分组。
 class SearchPage extends StatefulWidget {
   final TxnDao dao;
+  final BillVisibility visibility;
 
-  const SearchPage({super.key, required this.dao});
+  const SearchPage({
+    super.key,
+    required this.dao,
+    required this.visibility,
+  });
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -23,7 +28,6 @@ class _SearchPageState extends State<SearchPage> {
   Map<String, String> _categoryIcons = const {};
   bool _touched = false;
 
-  /// 输入快的时候查询会乱序回来，用序号把旧结果丢掉
   int _seq = 0;
 
   @override
@@ -59,7 +63,7 @@ class _SearchPageState extends State<SearchPage> {
     final r = await widget.dao.search(kw);
     if (!mounted || seq != _seq) return;
     setState(() {
-      _results = r;
+      _results = widget.visibility.visible(r);
       _touched = true;
     });
   }

@@ -1,27 +1,32 @@
 import 'package:flutter/material.dart';
 
+import '../bill_visibility.dart';
 import '../db.dart';
 import '../models.dart';
 import '../stats.dart';
 import '../widgets/charts.dart';
 import '../widgets/common.dart';
 
-/// 月度：切换月 + 支出/收入切换 + 日历图 + 分类饼图 + Top 10
 class MonthPage extends StatefulWidget {
   final TxnDao dao;
-
-  /// 变了就重新读库（导入之后外壳会把它 +1）
+  final BillVisibility visibility;
   final int refreshToken;
 
-  const MonthPage({super.key, required this.dao, required this.refreshToken});
+  const MonthPage({
+    super.key,
+    required this.dao,
+    required this.visibility,
+    required this.refreshToken,
+  });
 
   @override
   State<MonthPage> createState() => _MonthPageState();
 }
 
 class _MonthPageState extends State<MonthPage> {
-  late int _year;
-  late int _month;
+  int _year = DateTime.now().year;
+  int _month = DateTime.now().month;
+  bool _located = false;
   bool _expense = true;
   bool _loading = true;
   List<Txn> _txns = const [];
@@ -30,9 +35,6 @@ class _MonthPageState extends State<MonthPage> {
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _year = now.year;
-    _month = now.month;
     _load();
   }
 
@@ -43,13 +45,23 @@ class _MonthPageState extends State<MonthPage> {
   }
 
   Future<void> _load() async {
+    if (!_located) {
+      _located = true;
+      final latest = await widget.dao.latestDate();
+      if (latest != null) {
+        final y = yearOf(latest);
+        final m = monthOf(latest);
+        if (y > 0) _year = y;
+        if (m >= 1 && m <= 12) _month = m;
+      }
+    }
     final from = isoDate(_year, _month, 1);
     final to = isoDate(_year, _month, daysInMonth(_year, _month));
     final txns = await widget.dao.listRange(from, to);
     final icons = await widget.dao.categoryIcons();
     if (!mounted) return;
     setState(() {
-      _txns = txns;
+      _txns = widget.visibility.visible(txns);
       _categoryIcons = icons;
       _loading = false;
     });
@@ -117,7 +129,7 @@ class _MonthPageState extends State<MonthPage> {
                   ChartSection(
                     title: _expense ? '消费排行 Top 10' : '盈利排行 Top 10',
                     child: RankedList(
-                      items: topCategories(filtered),
+                      items: topTxns(filtered),
                       totalCents: totalCents(filtered),
                       expense: _expense,
                       categoryIcons: _categoryIcons,

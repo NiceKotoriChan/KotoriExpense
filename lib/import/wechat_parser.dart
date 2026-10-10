@@ -2,7 +2,6 @@ import 'package:excel/excel.dart';
 
 import '../models.dart';
 
-/// 微信账单的列名写死在这儿 —— 这份导出格式只有一种，不通用化。
 const String _cDate = '交易时间';
 const String _cDirection = '收/支';
 const String _cAmount = '金额(元)';
@@ -10,11 +9,8 @@ const String _cType = '支付方式';
 const String _cCounterparty = '交易对方';
 const String _cItem = '商品';
 
-/// 认表头至少要凑齐这三列，凑不齐就不是微信账单
 const List<String> _keyColumns = [_cDate, _cDirection, _cAmount];
 
-/// 微信支付账单：只认 xlsx。金额带 ¥，没有货币列和分类列。
-/// 认不出返回 null，交给下一家。
 ParseResult? parseWechat(List<int> bytes) {
   final rows = _rows(bytes);
   if (rows == null) return null;
@@ -74,9 +70,6 @@ ParseResult? parseWechat(List<int> bytes) {
   );
 }
 
-/// 字节 -> 二维表。xlsx 是个 zip，头两个字节固定是 'PK'，不是就放弃。
-/// 微信排在最前面，认不出必须安静地返回 null —— 这里绝不能往外抛，
-/// 抛了后面的支付宝就没机会了（zip 里塞坏数据是真会抛的）。
 List<List<dynamic>>? _rows(List<int> bytes) {
   if (bytes.length <= 2 || bytes[0] != 0x50 || bytes[1] != 0x4B) return null;
   try {
@@ -108,7 +101,6 @@ String? _cell(List<dynamic> row, int? index) {
   return (v == null || v.isEmpty) ? null : v;
 }
 
-/// '支出' -> expense，'收入' -> income；'/' 表示不计收支
 String? _direction(String? raw) {
   if (raw == null) return null;
   if (raw.contains('支出')) return 'expense';
@@ -116,7 +108,6 @@ String? _direction(String? raw) {
   return null;
 }
 
-/// '¥22.00' -> 2200
 int? _cents(String? raw) {
   if (raw == null) return null;
   final m = RegExp(r'^[¥￥]?\s*(\d+)(?:\.(\d{1,2}))?$')
@@ -132,6 +123,5 @@ String? _date(String? raw) {
   final d = DateTime.tryParse(raw);
   if (d == null) return null;
   String two(int n) => n.toString().padLeft(2, '0');
-  return '${d.year}-${two(d.month)}-${two(d.day)} '
-      '${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
+  return '${d.year}-${two(d.month)}-${two(d.day)}';
 }

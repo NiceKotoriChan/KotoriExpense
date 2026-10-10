@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart' as sqflite;
 
+import 'bill_visibility.dart';
 import 'db.dart';
 import 'icons.dart';
 import 'pages/home_page.dart';
@@ -12,13 +16,16 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     final db = await openAppDb(factory: sqflite.databaseFactory);
-    runApp(KotoriExpenseApp(dao: TxnDao(db)));
+    final dir = await sqflite.databaseFactory.getDatabasesPath();
+    final visibility = await BillVisibility.open(
+      File(p.join(dir, 'bill_visibility.json')),
+    );
+    runApp(KotoriExpenseApp(dao: TxnDao(db), visibility: visibility));
   } catch (e) {
     runApp(_DbErrorApp(message: '$e'));
   }
 }
 
-/// 开库失败时给个能看懂的页面，别留白屏
 class _DbErrorApp extends StatelessWidget {
   final String message;
 
@@ -42,8 +49,13 @@ class _DbErrorApp extends StatelessWidget {
 
 class KotoriExpenseApp extends StatelessWidget {
   final TxnDao dao;
+  final BillVisibility visibility;
 
-  const KotoriExpenseApp({super.key, required this.dao});
+  const KotoriExpenseApp({
+    super.key,
+    required this.dao,
+    required this.visibility,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -54,19 +66,16 @@ class KotoriExpenseApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF3F7D6E),
       ),
-      home: AppShell(dao: dao),
+      home: AppShell(dao: dao, visibility: visibility),
     );
   }
 }
 
-/// 四页外壳：底部导航 + 左右滑动。
-///
-/// [refreshToken] 是「数据变了」的信号：导入或改配置后 +1，
-/// 各页在 didUpdateWidget 里看到它变了就重新读库。
 class AppShell extends StatefulWidget {
   final TxnDao dao;
+  final BillVisibility visibility;
 
-  const AppShell({super.key, required this.dao});
+  const AppShell({super.key, required this.dao, required this.visibility});
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -99,18 +108,28 @@ class _AppShellState extends State<AppShell> {
     return Scaffold(
       body: PageView(
         controller: _controller,
+        physics: const NeverScrollableScrollPhysics(),
         onPageChanged: (i) => setState(() => _index = i),
         children: [
           HomePage(
             dao: widget.dao,
+            visibility: widget.visibility,
             refreshToken: _refreshToken,
             onDataChanged: _bump,
           ),
-          MonthPage(dao: widget.dao, refreshToken: _refreshToken),
-          YearPage(dao: widget.dao, refreshToken: _refreshToken),
+          MonthPage(
+            dao: widget.dao,
+            visibility: widget.visibility,
+            refreshToken: _refreshToken,
+          ),
+          YearPage(
+            dao: widget.dao,
+            visibility: widget.visibility,
+            refreshToken: _refreshToken,
+          ),
           SettingsPage(
             dao: widget.dao,
-            refreshToken: _refreshToken,
+            visibility: widget.visibility,
             onDataChanged: _bump,
           ),
         ],
