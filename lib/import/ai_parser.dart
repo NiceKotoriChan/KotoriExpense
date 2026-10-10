@@ -10,6 +10,8 @@ const String kAiApiKey = 'ai.api_key';
 const String kAiModel = 'ai.model';
 const String kAiPrompt = 'ai.prompt';
 
+const String kDefaultAiBaseUrl = 'https://open.bigmodel.cn/api/paas/v4';
+
 const String kDefaultAiPrompt = '''
 你是账单解析器。用户会给你一段从账单文件导出的文本（CSV、TSV 或直接复制的表格）。
 
@@ -43,8 +45,9 @@ class AiConfig {
 
   factory AiConfig.fromSettings(Map<String, String> s) {
     final prompt = (s[kAiPrompt] ?? '').trim();
+    final baseUrl = (s[kAiBaseUrl] ?? '').trim();
     return AiConfig(
-      baseUrl: (s[kAiBaseUrl] ?? '').trim(),
+      baseUrl: baseUrl.isEmpty ? kDefaultAiBaseUrl : baseUrl,
       apiKey: (s[kAiApiKey] ?? '').trim(),
       model: (s[kAiModel] ?? '').trim(),
       prompt: prompt.isEmpty ? kDefaultAiPrompt : prompt,
@@ -209,6 +212,55 @@ Future<AiTrace> aiExchange(
   return build(status: raw.status, elapsedMs: raw.ms, reply: parsed.content);
 }
 
+Future<({List<String> models, String? error})> fetchAiModels(
+  String baseUrl,
+  String apiKey, {
+  Duration timeout = kAiProbeTimeout,
+}) async {
+  final base = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+  if (base.isEmpty) return (models: const <String>[], error: '先填 API 地址');
+
+  final key = apiKey.trim();
+  http.Response resp;
+  try {
+    resp = await http
+        .get(
+          Uri.parse('$base/models'),
+          headers: {if (key.isNotEmpty) 'Authorization': 'Bearer $key'},
+        )
+        .timeout(timeout);
+  } catch (e) {
+    return (models: const <String>[], error: '连不上：$e');
+  }
+
+  if (resp.statusCode != 200) {
+    return (models: const <String>[], error: _httpError(resp.statusCode));
+  }
+
+  final ids = _modelIds(utf8.decode(resp.bodyBytes, allowMalformed: true));
+  if (ids == null) return (models: const <String>[], error: '返回里没有模型列表');
+  return (models: ids, error: null);
+}
+
+List<String>? _modelIds(String raw) {
+  Object? data;
+  try {
+    data = jsonDecode(raw);
+  } on FormatException {
+    return null;
+  }
+
+  final list = data is Map ? data['data'] : null;
+  if (list is! List) return null;
+
+  final ids = <String>[];
+  for (final item in list) {
+    final id = item is Map ? item['id'] : null;
+    if (id is String && id.trim().isNotEmpty) ids.add(id.trim());
+  }
+  return ids;
+}
+
 Future<_Raw> _post(
   AiConfig cfg,
   String text,
@@ -303,7 +355,7 @@ String _httpError(int status) {
       continue;
     }
 
-    final date = _date(row['date']);
+    final date = isoDay(row['date']);
     if (date == null) {
       issues.add(ParseIssue(i + 1, '交易时间认不出'));
       continue;
@@ -371,15 +423,6 @@ int? _cents(Object? v) {
   final cents = parseAmountCents(v is String ? v : v.toString());
   if (cents == null || cents == 0) return null;
   return cents.abs();
-}
-
-String? _date(Object? v) {
-  final s = _text(v);
-  if (s == null) return null;
-  final d = DateTime.tryParse(s);
-  if (d == null) return null;
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${d.year}-${two(d.month)}-${two(d.day)}';
 }
 
 String _brief(String s, [int max = 200]) {

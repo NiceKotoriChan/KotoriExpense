@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../db.dart';
+import '../icons.dart';
 import '../import/ai_parser.dart';
 import '../widgets/common.dart';
 
@@ -26,6 +27,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
   Timer? _pendingSave;
   bool _loaded = false;
   bool _busy = false;
+  bool _fetching = false;
   AiTrace? _trace;
 
   @override
@@ -47,8 +49,9 @@ class _AiConfigPageState extends State<AiConfigPage> {
   Future<void> _load() async {
     final s = await widget.dao.settings();
     if (!mounted) return;
+    final base = (s[kAiBaseUrl] ?? '').trim();
     setState(() {
-      _baseUrl.text = s[kAiBaseUrl] ?? '';
+      _baseUrl.text = base.isEmpty ? kDefaultAiBaseUrl : base;
       _apiKey.text = s[kAiApiKey] ?? '';
       _model.text = s[kAiModel] ?? '';
       _prompt.text = s[kAiPrompt] ?? kDefaultAiPrompt;
@@ -74,6 +77,39 @@ class _AiConfigPageState extends State<AiConfigPage> {
     if (_pendingSave == null || !_pendingSave!.isActive) return;
     _pendingSave!.cancel();
     _save();
+  }
+
+  Future<void> _pickModel() async {
+    setState(() => _fetching = true);
+    final r = await fetchAiModels(_baseUrl.text, _apiKey.text);
+    if (!mounted) return;
+    setState(() => _fetching = false);
+
+    if (r.error != null || r.models.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(r.error ?? '没拉到任何模型')),
+      );
+      return;
+    }
+
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => ListView(
+        shrinkWrap: true,
+        children: [
+          for (final id in r.models)
+            ListTile(
+              title: Text(id),
+              selected: id == _model.text.trim(),
+              onTap: () => Navigator.pop(ctx, id),
+            ),
+        ],
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _model.text = picked);
+    _scheduleSave();
   }
 
   Future<void> _test() async {
@@ -111,7 +147,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
                   onChanged: (_) => _scheduleSave(),
                   decoration: const InputDecoration(
                     labelText: 'API 地址',
-                    hintText: 'https://api.openai.com/v1',
+                    hintText: kDefaultAiBaseUrl,
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -128,13 +164,23 @@ class _AiConfigPageState extends State<AiConfigPage> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _model,
-                  onChanged: (_) => _scheduleSave(),
-                  decoration: const InputDecoration(
-                    labelText: '模型名',
-                    hintText: 'gpt-4o-mini',
-                    border: OutlineInputBorder(),
+                  readOnly: true,
+                  onTap: _fetching ? null : _pickModel,
+                  decoration: InputDecoration(
+                    labelText: '模型',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      onPressed: _fetching ? null : _pickModel,
+                      icon: Icon(AppIcons.resolve('arrowDropDown')),
+                      tooltip: '拉取模型列表',
+                    ),
                   ),
                 ),
+                if (_fetching)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 12),
+                    child: LinearProgressIndicator(),
+                  ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _prompt,

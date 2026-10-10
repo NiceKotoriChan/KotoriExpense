@@ -100,6 +100,37 @@ int? parseAmountCents(String? raw) {
   return negative ? -cents : cents;
 }
 
+String? isoDay(Object? v) {
+  final s = v?.toString().trim();
+  if (s == null || s.isEmpty) return null;
+  final d = DateTime.tryParse(s);
+  if (d == null) return null;
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${d.year}-${two(d.month)}-${two(d.day)}';
+}
+
+String? cellAt(List<dynamic> row, int? index) {
+  if (index == null || index >= row.length) return null;
+  final v = row[index]?.toString().trim();
+  return (v == null || v.isEmpty) ? null : v;
+}
+
+int findHeaderRow(List<List<dynamic>> rows, List<String> keyColumns) {
+  final limit = rows.length < 40 ? rows.length : 40;
+  for (var i = 0; i < limit; i++) {
+    final cells = rows[i].map((c) => c.toString().trim()).toSet();
+    if (keyColumns.every(cells.contains)) return i;
+  }
+  return -1;
+}
+
+String? directionOf(String? raw) {
+  if (raw == null) return null;
+  if (raw.contains('支出')) return 'expense';
+  if (raw.contains('收入')) return 'income';
+  return null;
+}
+
 class ParseIssue {
   final int lineNo;
   final String reason;

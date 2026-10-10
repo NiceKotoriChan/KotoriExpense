@@ -1,4 +1,4 @@
-package com.example.kotori_expense
+package com.example.kotoriexpense
 
 import io.flutter.embedding.android.FlutterActivity
 

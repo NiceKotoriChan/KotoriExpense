@@ -1,6 +1,6 @@
 {
-    "name": "kotori_expense",
-    "short_name": "kotori_expense",
+    "name": "KotoriExpense",
+    "short_name": "KotoriExpense",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
