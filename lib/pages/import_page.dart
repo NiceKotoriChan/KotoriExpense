@@ -37,7 +37,7 @@ class _ImportPageState extends State<ImportPage> {
   late final Map<String, _ParseFn> _methods = {
     '微信': (b) async => parseWechat(b),
     '支付宝': (b) async => parseAlipay(b),
-    'AI': _parseAi,
+    '大模型': _parseAi,
   };
 
   Future<ParseResult?> _parseAi(List<int> bytes) async {
@@ -142,7 +142,6 @@ class _ImportPageState extends State<ImportPage> {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
     final r = _result;
     final name = _fileName;
 
@@ -151,23 +150,9 @@ class _ImportPageState extends State<ImportPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-            child: Text('用哪种方式解析？', style: tt.titleSmall),
-          ),
+          const SizedBox(height: 8),
           ..._methodRows(),
-          if (name == null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Text(
-                '点一种方式，再挑账单文件',
-                style: tt.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            )
-          else
-            _HintText(text: '已选文件：$name', isError: false),
+          if (name != null) _HintText(text: '已选文件：$name', isError: false),
           if (_busy) const LinearProgressIndicator(),
           if (_trace != null)
             Padding(

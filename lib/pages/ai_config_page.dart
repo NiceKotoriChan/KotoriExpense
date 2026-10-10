@@ -182,16 +182,23 @@ class _AiConfigPageState extends State<AiConfigPage> {
                     child: LinearProgressIndicator(),
                   ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: _prompt,
-                  minLines: 6,
-                  maxLines: 14,
-                  onChanged: (_) => _scheduleSave(),
-                  decoration: const InputDecoration(
-                    labelText: '提示词',
-                    border: OutlineInputBorder(),
-                    alignLabelWithHint: true,
-                  ),
+                ExpansionTile(
+                  title: const Text('提示词'),
+                  tilePadding: EdgeInsets.zero,
+                  shape: const Border(),
+                  collapsedShape: const Border(),
+                  children: [
+                    TextField(
+                      controller: _prompt,
+                      minLines: 6,
+                      maxLines: 14,
+                      onChanged: (_) => _scheduleSave(),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
