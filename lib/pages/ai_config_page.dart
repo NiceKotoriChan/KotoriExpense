@@ -51,7 +51,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
     if (!mounted) return;
     final base = (s[kAiBaseUrl] ?? '').trim();
     setState(() {
-      _baseUrl.text = base.isEmpty ? kDefaultAiBaseUrl : base;
+      _baseUrl.text = base == kDefaultAiBaseUrl ? '' : base;
       _apiKey.text = s[kAiApiKey] ?? '';
       _model.text = s[kAiModel] ?? '';
       _prompt.text = s[kAiPrompt] ?? kDefaultAiPrompt;
@@ -148,6 +148,7 @@ class _AiConfigPageState extends State<AiConfigPage> {
                   decoration: const InputDecoration(
                     labelText: 'API 地址',
                     hintText: kDefaultAiBaseUrl,
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
                     border: OutlineInputBorder(),
                   ),
                 ),

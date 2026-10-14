@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart' as sqflite;
 
@@ -11,6 +12,8 @@ import 'pages/home_page.dart';
 import 'pages/month_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/year_page.dart';
+import 'update.dart';
+import 'widgets/update_dialog.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -85,6 +88,37 @@ class _AppShellState extends State<AppShell> {
   final PageController _controller = PageController();
   int _index = 0;
   int _refreshToken = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkUpdate());
+  }
+
+  Future<void> _checkUpdate() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final release = await fetchLatestRelease();
+      if (release.apk == null) return;
+      if (!isNewerVersion(release.version, info.version)) return;
+
+      final skipped = (await widget.dao.settings())[kSkippedUpdateKey];
+      if (skipped == release.version) return;
+      if (!mounted) return;
+
+      final r = await showUpdateDialog(
+        context,
+        release: release,
+        current: info.version,
+      );
+      if (r == false) {
+        await widget.dao.saveSettings({kSkippedUpdateKey: release.version});
+      }
+    } catch (_) {
+      return;
+    }
+  }
 
   @override
   void dispose() {

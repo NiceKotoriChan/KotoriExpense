@@ -24,6 +24,7 @@ abstract final class AppIcons {
     'importRecords': Symbols.history,
     'autoCategory': Symbols.rule,
     'recategorize': Symbols.autorenew,
+    'update': Symbols.system_update,
   };
 
   static const Map<String, IconData> categoryIcons = {
