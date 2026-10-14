@@ -8,7 +8,6 @@ import '../models.dart';
 const String kAiBaseUrl = 'ai.base_url';
 const String kAiApiKey = 'ai.api_key';
 const String kAiModel = 'ai.model';
-const String kAiPrompt = 'ai.prompt';
 
 const String kDefaultAiBaseUrl = 'https://open.bigmodel.cn/api/paas/v4';
 
@@ -34,23 +33,19 @@ class AiConfig {
   final String baseUrl;
   final String apiKey;
   final String model;
-  final String prompt;
 
   const AiConfig({
     required this.baseUrl,
     required this.apiKey,
     required this.model,
-    required this.prompt,
   });
 
   factory AiConfig.fromSettings(Map<String, String> s) {
-    final prompt = (s[kAiPrompt] ?? '').trim();
     final baseUrl = (s[kAiBaseUrl] ?? '').trim();
     return AiConfig(
       baseUrl: baseUrl.isEmpty ? kDefaultAiBaseUrl : baseUrl,
       apiKey: (s[kAiApiKey] ?? '').trim(),
       model: (s[kAiModel] ?? '').trim(),
-      prompt: prompt.isEmpty ? kDefaultAiPrompt : prompt,
     );
   }
 
@@ -97,7 +92,7 @@ Future<ParseResult> parseAi(
   final trace = await aiExchange(
     cfg,
     text,
-    system: cfg.prompt,
+    system: kDefaultAiPrompt,
     onRequest: onTrace,
   );
   onTrace?.call(trace);
@@ -121,7 +116,6 @@ const int kTraceBodyChars = 400;
 class AiTrace {
   final String endpoint;
   final String model;
-  final String? system;
   final String user;
   final int userChars;
   final int? status;
@@ -133,7 +127,6 @@ class AiTrace {
   const AiTrace({
     required this.endpoint,
     required this.model,
-    this.system,
     required this.user,
     required this.userChars,
     this.status,
@@ -164,15 +157,11 @@ Future<AiTrace> aiExchange(
   void Function(AiTrace)? onRequest,
 }) async {
   final endpoint = _chatUrl(cfg);
-  final systemBrief = system == null || system.trim().isEmpty
-      ? null
-      : _brief(system, kTraceTextChars);
 
   AiTrace build({int? status, int? elapsedMs, String body = '', String? reply, String? error}) =>
       AiTrace(
         endpoint: endpoint,
         model: cfg.model,
-        system: systemBrief,
         user: _brief(text, kTraceTextChars),
         userChars: text.length,
         status: status,

@@ -18,11 +18,13 @@ class AiConfigPage extends StatefulWidget {
 
 class _AiConfigPageState extends State<AiConfigPage> {
   static const Duration _saveDelay = Duration(milliseconds: 600);
+  static const String _legacyPromptKey = 'ai.prompt';
 
   final _baseUrl = TextEditingController();
   final _apiKey = TextEditingController();
   final _model = TextEditingController();
-  final _prompt = TextEditingController();
+
+  final _baseUrlFocus = FocusNode();
 
   Timer? _pendingSave;
   bool _loaded = false;
@@ -33,28 +35,37 @@ class _AiConfigPageState extends State<AiConfigPage> {
   @override
   void initState() {
     super.initState();
+    _baseUrlFocus.addListener(_onBaseUrlFocus);
     _load();
   }
 
   @override
   void dispose() {
     _flushSave();
+    _baseUrlFocus
+      ..removeListener(_onBaseUrlFocus)
+      ..dispose();
     _baseUrl.dispose();
     _apiKey.dispose();
     _model.dispose();
-    _prompt.dispose();
     super.dispose();
+  }
+
+  void _onBaseUrlFocus() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _load() async {
     final s = await widget.dao.settings();
+    if (s.containsKey(_legacyPromptKey)) {
+      await widget.dao.deleteSettings([_legacyPromptKey]);
+    }
     if (!mounted) return;
     final base = (s[kAiBaseUrl] ?? '').trim();
     setState(() {
       _baseUrl.text = base == kDefaultAiBaseUrl ? '' : base;
       _apiKey.text = s[kAiApiKey] ?? '';
       _model.text = s[kAiModel] ?? '';
-      _prompt.text = s[kAiPrompt] ?? kDefaultAiPrompt;
       _loaded = true;
     });
   }
@@ -64,7 +75,6 @@ class _AiConfigPageState extends State<AiConfigPage> {
       kAiBaseUrl: _baseUrl.text.trim(),
       kAiApiKey: _apiKey.text.trim(),
       kAiModel: _model.text.trim(),
-      kAiPrompt: _prompt.text.trim(),
     });
   }
 
@@ -117,7 +127,6 @@ class _AiConfigPageState extends State<AiConfigPage> {
       baseUrl: _baseUrl.text.trim(),
       apiKey: _apiKey.text.trim(),
       model: _model.text.trim(),
-      prompt: _prompt.text.trim(),
     );
 
     setState(() {
@@ -144,12 +153,14 @@ class _AiConfigPageState extends State<AiConfigPage> {
               children: [
                 TextField(
                   controller: _baseUrl,
+                  focusNode: _baseUrlFocus,
                   onChanged: (_) => _scheduleSave(),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'API 地址',
-                    hintText: kDefaultAiBaseUrl,
+                    hintText: _baseUrlFocus.hasFocus ? null : kDefaultAiBaseUrl,
+                    hintStyle: const TextStyle(color: Colors.black26),
                     floatingLabelBehavior: FloatingLabelBehavior.always,
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -182,25 +193,6 @@ class _AiConfigPageState extends State<AiConfigPage> {
                     padding: EdgeInsets.only(top: 12),
                     child: LinearProgressIndicator(),
                   ),
-                const SizedBox(height: 12),
-                ExpansionTile(
-                  title: const Text('提示词'),
-                  tilePadding: EdgeInsets.zero,
-                  shape: const Border(),
-                  collapsedShape: const Border(),
-                  children: [
-                    TextField(
-                      controller: _prompt,
-                      minLines: 6,
-                      maxLines: 14,
-                      onChanged: (_) => _scheduleSave(),
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        alignLabelWithHint: true,
-                      ),
-                    ),
-                  ],
-                ),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,

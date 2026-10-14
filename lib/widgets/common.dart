@@ -352,7 +352,6 @@ class AiTraceView extends StatelessWidget {
     final request = <Widget>[
       Text(t.endpoint),
       if (t.model.isNotEmpty) Text('model: ${t.model}'),
-      if (t.system != null) _oneLine('提示词：${t.system}'),
       _oneLine('发送 ${t.userChars} 字：${t.user}'),
     ];
 

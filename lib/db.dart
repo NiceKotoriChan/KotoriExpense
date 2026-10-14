@@ -313,4 +313,12 @@ class TxnDao {
     });
     await batch.commit(noResult: true);
   }
+
+  Future<void> deleteSettings(Iterable<String> keys) async {
+    final batch = db.batch();
+    for (final k in keys) {
+      batch.delete('settings', where: 'key = ?', whereArgs: [k]);
+    }
+    await batch.commit(noResult: true);
+  }
 }
